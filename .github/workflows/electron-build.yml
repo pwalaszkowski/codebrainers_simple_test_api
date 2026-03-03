@@ -3,7 +3,7 @@ name: Build Electron App
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ electron-build ]
 
 jobs:
   build:
