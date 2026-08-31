@@ -1,0 +1,71 @@
+name: Build macOS (standalone)
+
+# Standalone, on-demand macOS build. Unlike the build-macos job in ci.yml,
+# this workflow does NOT depend on lint/typecheck/tests/coverage/security
+# passing first - it just checks out the chosen ref and packages it. That
+# makes it usable against older tags (e.g. v1.2.0) that predate the
+# current test suite / pyproject.toml and would otherwise fail the full
+# ci.yml gate before ever reaching the build step.
+#
+# Usage: Actions tab -> "Build macOS (standalone)" -> Run workflow ->
+# set "ref" to the tag/branch/commit you want built (defaults to v1.2.0).
+# The resulting run.app is uploaded as the "macos-app" artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag, or commit SHA to build"
+        required: true
+        default: "v1.2.0"
+
+jobs:
+  build-macos:
+    name: Build macOS app @ ${{ inputs.ref }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout ${{ inputs.ref }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install fastapi uvicorn pyinstaller
+
+      - name: Build APP
+        # static/ and db.py don't exist on early tags (e.g. v1.2.0) - only
+        # pass --add-data / the sqlite3 hidden import when they're present
+        # in the checked-out ref, so this works across the app's history.
+        run: |
+          ARGS=(run.py --name run --windowed \
+            --hidden-import=anyio._backends._asyncio \
+            --hidden-import=anyio._backends._trio \
+            --collect-all anyio \
+            --collect-all fastapi \
+            --collect-all uvicorn \
+            --collect-all starlette)
+
+          if [ -d static ]; then
+            ARGS+=(--add-data "static:static")
+          fi
+          if [ -f db.py ]; then
+            ARGS+=(--hidden-import=sqlite3)
+          fi
+
+          pyinstaller "${ARGS[@]}"
+
+      - name: Test app start
+        run: |
+          chmod +x dist/run.app/Contents/MacOS/run
+          dist/run.app/Contents/MacOS/run &
+          sleep 6
+          curl -f http://127.0.0.1:8000/health
+          curl -f http://127.0.0.1:8000/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: dist/run.app
