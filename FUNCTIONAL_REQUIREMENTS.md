@@ -102,6 +102,41 @@ Pole `on_leave`:
 * powinno być prezentowane jako checkbox,
 * domyślna wartość: false.
 
+## 4.6 Pole Username (logowanie)
+
+Pole `username` (formularz logowania, `POST /api/login`):
+- musi być wymagane,
+- minimalna długość: `1`,
+- maksymalna długość: `10`,
+- powinno akceptować:
+  - litery (bez polskich znaków diakrytycznych),
+  - cyfry,
+- nie powinno akceptować spacji ani znaków specjalnych.
+
+### Regex walidacyjny
+
+```bash
+^[A-Za-z0-9]{1,10}$
+```
+
+## 4.7 Pole Password (logowanie)
+
+Pole `password` (formularz logowania, `POST /api/login`):
+- musi być wymagane,
+- minimalna długość: `1`,
+- maksymalna długość: `20`,
+- powinno akceptować:
+  - litery (bez polskich znaków diakrytycznych),
+  - cyfry,
+  - znaki specjalne: `! @ # $ % ^ & * ( ) _ + - = [ ] { } | ; : , . < > ? / ~ \``,
+- nie powinno akceptować spacji ani polskich znaków diakrytycznych.
+
+### Regex walidacyjny
+
+```bash
+^[A-Za-z0-9!@#$%^&*()_+\-=\[\]{}|;:,.<>?/~`]{1,20}$
+```
+
 # 5. UI aplikacji
 ## 5.1 Navbar
 
@@ -232,7 +267,8 @@ Backend powinien zwracać błędy walidacyjne (422) dla:
 - niepoprawnego `name`,
 - niepoprawnego `salary`,
 - niepoprawnego `age`,
-- niepoprawnego `position`.
+- niepoprawnego `position`,
+- niepoprawnego `username` lub `password` przy logowaniu (`POST /api/login`) — patrz 4.6, 4.7.
 
 ## 10.3 Nieznaleziony pracownik (404)
 
@@ -293,7 +329,7 @@ Walidacja danych powinna być realizowana:
 | Metoda HTTP | Endpoint | Opis | Kod sukcesu | Autoryzacja |
 |---|---|---|---|---|
 | GET | `/health` | Healthcheck API | 200 | Brak |
-| POST | `/api/login` | Logowanie (`admin`/`admin`), zwraca bearer token ważny 10 minut | 200 (401 przy błędnych danych) | Brak |
+| POST | `/api/login` | Logowanie (`admin`/`admin`), zwraca bearer token ważny 10 minut | 200 (401 przy błędnych danych, 422 przy niepoprawnym formacie `username`/`password` — patrz 4.6, 4.7) | Brak |
 | POST | `/api/logout` | Wylogowanie — unieważnia token po stronie serwera | 200 (401 bez tokenu) | Bearer |
 | GET | `/api/employees` | Pobranie listy pracowników | 200 (401 bez tokenu) | Bearer |
 | POST | `/api/employees` | Dodanie pracownika | 200 (401 bez tokenu) | Bearer |

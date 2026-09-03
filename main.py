@@ -52,9 +52,15 @@ bearer_dependency = Depends(security)
 active_tokens: dict[str, datetime] = {}
 
 
+# Login credentials use a narrower charset than the Employee.name field:
+# no Polish diacritics are allowed here (see FUNCTIONAL_REQUIREMENTS.md 4.6/4.7).
+USERNAME_PATTERN = r"^[A-Za-z0-9]+$"
+PASSWORD_PATTERN = r"^[A-Za-z0-9!@#$%^&*()_+\-=\[\]{}|;:,.<>?/~`]+$"
+
+
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=1, max_length=10, pattern=USERNAME_PATTERN)
+    password: str = Field(..., min_length=1, max_length=20, pattern=PASSWORD_PATTERN)
 
 
 class TokenResponse(BaseModel):

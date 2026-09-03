@@ -1,6 +1,12 @@
 // Login page logic. Depends on the shared helpers in auth.js (isTokenValid)
 // and theme.js, which must be loaded first.
 
+// Same charset rules the backend enforces on POST /api/login — see
+// FUNCTIONAL_REQUIREMENTS.md 4.6/4.7. Kept in sync with main.py's
+// USERNAME_PATTERN / PASSWORD_PATTERN (no Polish diacritics allowed).
+const USERNAME_PATTERN = /^[A-Za-z0-9]{1,10}$/;
+const PASSWORD_PATTERN = /^[A-Za-z0-9!@#$%^&*()_+\-=\[\]{}|;:,.<>?/~`]{1,20}$/;
+
 function showError(message) {
     const box = document.getElementById('errorBox');
     box.innerText = message;
@@ -24,6 +30,16 @@ document.getElementById('loginForm').addEventListener('submit', async function (
 
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
+
+    if (!USERNAME_PATTERN.test(username)) {
+        showError('Username must be 1-10 characters: letters (no Polish characters) and digits only');
+        return;
+    }
+
+    if (!PASSWORD_PATTERN.test(password)) {
+        showError('Password must be 1-20 characters: letters (no Polish characters), digits and special characters only');
+        return;
+    }
 
     let res;
 
