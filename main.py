@@ -54,8 +54,12 @@ active_tokens: dict[str, datetime] = {}
 
 # Login credentials use a narrower charset than the Employee.name field:
 # no Polish diacritics are allowed here (see FUNCTIONAL_REQUIREMENTS.md 4.6/4.7).
+# These are validation-only character-class regexes, not credentials, but the
+# "PASSWORD" substring in the constant name still trips Bandit's B105
+# hardcoded-password heuristic (it flags by variable name, not by value) —
+# suppressed explicitly rather than renamed, to keep the name self-documenting.
 USERNAME_PATTERN = r"^[A-Za-z0-9]+$"
-PASSWORD_PATTERN = r"^[A-Za-z0-9!@#$%^&*()_+\-=\[\]{}|;:,.<>?/~`]+$"
+PASSWORD_PATTERN = r"^[A-Za-z0-9!@#$%^&*()_+\-=\[\]{}|;:,.<>?/~`]+$"  # nosec B105
 
 
 class LoginRequest(BaseModel):
