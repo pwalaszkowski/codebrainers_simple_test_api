@@ -208,27 +208,27 @@ jobs:
         # workflow was split into per-type jobs.
         run: coverage report --show-missing
 
-  # security:
-  #   name: Security (Bandit + pip-audit)
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
+  security:
+    name: Security (Bandit + pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - uses: actions/setup-python@v5
-  #       with:
-  #         python-version: "3.11"
-  #         cache: "pip"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
 
-  #     - name: Install dependencies
-  #       run: |
-  #         pip install -r requirements.txt
-  #         pip install bandit pip-audit
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install bandit pip-audit
 
-  #     - name: Bandit
-  #       run: bandit -r . -x ./.venv,./tests
+      # - name: Bandit
+      #   run: bandit -r . -x ./.venv,./tests
 
-  #     - name: pip-audit
-  #       run: pip-audit -r requirements.txt
+      # - name: pip-audit
+      #   run: pip-audit -r requirements.txt
 
   complexity:
     name: Code complexity (McCabe)
