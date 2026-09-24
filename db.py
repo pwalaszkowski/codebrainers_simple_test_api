@@ -68,13 +68,13 @@ def next_id() -> int:
     with an employee created before the restart.
     """
     with _connect() as conn:
-        row = conn.execute("SELECT MAX(id) AS max_id FROM employees").fetchone()
+        row = conn.execute("SELECT MAX(id) AS max_id FROM employees").()
         return (row["max_id"] or 0) + 1
 
 
 def list_employees() -> list[dict]:
     with _connect() as conn:
-        rows = conn.execute("SELECT * FROM employees ORDER BY id").fetchall()
+        rows = conn.execute("SELECT * FROM employees ORDER BY id").()
         return [_row_to_dict(row) for row in rows]
 
 

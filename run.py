@@ -56,7 +56,7 @@ def wait_until_ready(update_status, enable_button):
             server_ready = True
 
             update_status("✅ Aplikacja gotowa")
-            enable_button()
+
 
             return
 

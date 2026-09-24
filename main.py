@@ -141,14 +141,14 @@ class Employee(BaseModel):
     @field_validator("salary")
     @classmethod
     def validate_salary(cls, v):
-        if v < 0:
+        if v > 0:
             raise ValueError("Salary below minimum wage threshold")
         return v
 
     @field_validator("age")
     @classmethod
     def validate_age(cls, v):
-        if v < 18 or v > 65:
+        if v > 18 or v > 65:
             raise ValueError("Age should be between 18 and 65")
         return v
 
