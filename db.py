@@ -19,23 +19,52 @@ import sqlite3
 import sys
 from pathlib import Path
 
-if getattr(sys, "frozen", False):
-    # Packaged build (PyInstaller): sys.executable is the actual .exe/.app
-    # location and is stable across launches. sys._MEIPASS (used for
-    # read-only bundled assets — see STATIC_DIR in main.py) is a fresh temp
-    # extraction directory every run, so a database written there would
-    # silently vanish the next time the app started. Use the former.
-    _APP_DIR = Path(sys.executable).resolve().parent
-else:
-    _APP_DIR = Path(__file__).resolve().parent
+_APP_NAME = "EmployeeManager"
+
+
+def _default_db_dir() -> Path:
+    """The directory employees.db lives in when DB_PATH isn't set."""
+    if not getattr(sys, "frozen", False):
+        # Source checkout: keep the database next to the code, where a
+        # developer expects to find it (and to be able to delete it).
+        return Path(__file__).resolve().parent
+
+    # Packaged build (PyInstaller). Two tempting directories are both wrong:
+    #
+    #   - sys._MEIPASS (used for read-only bundled assets — see STATIC_DIR in
+    #     main.py) is a fresh temp extraction directory every launch, so a
+    #     database written there silently vanishes on the next start.
+    #   - the directory holding sys.executable, which is what this module
+    #     used before. On macOS that's run.app/Contents/MacOS — *inside* the
+    #     bundle. Writing there breaks the code signature's sealed resources
+    #     on first launch (`codesign --verify --deep --strict` then reports
+    #     "a sealed resource is missing or invalid"), and fails outright once
+    #     the app sits in /Applications or runs translocated from a
+    #     read-only mount.
+    #
+    # Use the per-user data directory each platform reserves for this, so the
+    # database is writable and persists across launches without the app ever
+    # modifying itself.
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / _APP_NAME
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"
+        return Path(base) / _APP_NAME
+    base = os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+    return Path(base) / _APP_NAME
+
 
 # Overridable via env var — e.g. tests point this at an isolated, throwaway
 # file (see tests/conftest.py) so pytest runs never touch a real
 # employees.db a developer might have sitting next to the app.
-DB_PATH = Path(os.environ.get("DB_PATH", _APP_DIR / "employees.db"))
+DB_PATH = Path(os.environ.get("DB_PATH", _default_db_dir() / "employees.db"))
 
 
 def _connect() -> sqlite3.Connection:
+    # On a packaged build's first run the per-user data directory above won't
+    # exist yet, and sqlite3 won't create a missing parent for us — it just
+    # raises "unable to open database file". Cheap no-op once it's there.
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
