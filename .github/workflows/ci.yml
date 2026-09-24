@@ -324,10 +324,14 @@ jobs:
             -H "Authorization: Bearer $TOKEN" \
             -d '{"name": "Smoke Test", "salary": 5000, "age": 30, "position": "Mid QA", "on_leave": false}'
           curl -sf http://127.0.0.1:8000/api/employees -H "Authorization: Bearer $TOKEN" | grep -q "Smoke Test"
+      
+      - name: Package the .app bundle
+        run: ditto -c -k --sequesterRsrc --keepParent dist/run.app dist/run-macos.zip
+        
       - uses: actions/upload-artifact@v4
         with:
           name: macos-app
-          path: dist/run.app
+          path: dist/run-macos.zip
 
   build-linux:
     name: Build Linux
