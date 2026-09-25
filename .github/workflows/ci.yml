@@ -266,7 +266,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   build-macos:
-    name: Build macOS
+    name: Build macOS (${{ matrix.arch }})
     needs:
       [
         lint,
@@ -278,7 +278,28 @@ jobs:
         coverage,
         security,
       ]
-    runs-on: macos-latest
+    # PyInstaller can only emit a binary for the arch it runs on, so we build
+    # once per arch on a runner of that arch. macos-latest is Apple Silicon;
+    # macos-15-intel is the standard Intel runner. A single arm64 artifact is
+    # unusable on an Intel Mac ("Bad CPU type in executable") and Rosetta 2
+    # can't rescue it — translation only goes x86_64 -> arm64, never back.
+    #
+    # --target-arch universal2 would avoid the second job but doesn't work
+    # here: it needs every native dependency to be a fat binary, and
+    # pydantic-core (pulled in by FastAPI) publishes separate x86_64 and
+    # arm64 wheels with no universal2 build. tkinter would need a universal2
+    # Tcl/Tk framework too, which setup-python's arm64 build isn't.
+    strategy:
+      # One arch failing shouldn't cancel the other: a broken Intel runner
+      # should still leave Apple Silicon users with a usable download.
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -301,6 +322,22 @@ jobs:
             --collect-all fastapi \
             --collect-all uvicorn \
             --collect-all starlette
+
+      - name: Check the binary really is ${{ matrix.arch }}
+        # The whole point of the matrix, so assert it rather than trust it.
+        # If a runner label gets repointed or setup-python hands us an
+        # interpreter of the other arch, the build still succeeds and uploads
+        # — we'd ship two artifacts that are secretly the same arch, and Intel
+        # users would be back to "Bad CPU type in executable" with nothing in
+        # the log to explain it.
+        run: |
+          file dist/run.app/Contents/MacOS/run
+          ARCHS=$(lipo -archs dist/run.app/Contents/MacOS/run)
+          if [ "$ARCHS" != "${{ matrix.arch }}" ]; then
+            echo "Expected ${{ matrix.arch }}, built $ARCHS" >&2
+            exit 1
+          fi
+
       - name: Test app start
         run: |
           chmod +x dist/run.app/Contents/MacOS/run
@@ -324,14 +361,44 @@ jobs:
             -H "Authorization: Bearer $TOKEN" \
             -d '{"name": "Smoke Test", "salary": 5000, "age": 30, "position": "Mid QA", "on_leave": false}'
           curl -sf http://127.0.0.1:8000/api/employees -H "Authorization: Bearer $TOKEN" | grep -q "Smoke Test"
-      
+
+      - name: Check the bundle didn't modify itself
+        # Runs *after* the smoke test above has created an employee, so the
+        # app has done its writing by now. PyInstaller ad-hoc signs the
+        # bundle, and that signature seals Contents/ — so if the app writes
+        # anything inside itself (employees.db used to land in
+        # Contents/MacOS, see _default_db_dir() in db.py) this fails with
+        # "a sealed resource is missing or invalid". A self-modifying bundle
+        # still launches from a writable folder, which is why CI was happy
+        # while real downloads were not: it breaks once the app is in
+        # /Applications or runs translocated from a read-only mount.
+        run: codesign --verify --deep --strict dist/run.app
+
       - name: Package the .app bundle
-        run: ditto -c -k --sequesterRsrc --keepParent dist/run.app dist/run-macos.zip
-        
+        # upload-artifact can't carry a .app directory: it zips the *files*
+        # it matched, rooted at their common ancestor, so `path: dist/run.app`
+        # produced an archive starting at Contents/ with the run.app wrapper
+        # itself gone. It also drops the POSIX exec bit on Contents/MacOS/run
+        # (note the chmod +x the smoke test above needs) and flattens the
+        # symlinks inside Contents/Frameworks — and a bundle is only a bundle
+        # if all three survive. `ditto -c -k` is the macOS-native way to zip
+        # one: --keepParent keeps run.app as the top-level entry, and ditto
+        # preserves modes, symlinks and resource forks. Each macos-app-<arch>
+        # artifact holds one zip, which unzips to a real run.app.
+        # It's unsigned, so Gatekeeper will quarantine it on another Mac:
+        # right-click -> Open, or xattr -dr com.apple.quarantine run.app.
+        #
+        # The arch goes in the filename because both builds land in the same
+        # release: the two .app bundles are indistinguishable once unzipped,
+        # so the download is the only place a student can tell them apart.
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            dist/run.app "dist/EmployeeManager-macos-${{ matrix.arch }}.zip"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-app
-          path: dist/run-macos.zip
+          name: macos-app-${{ matrix.arch }}
+          path: dist/EmployeeManager-macos-${{ matrix.arch }}.zip
 
   build-linux:
     name: Build Linux
